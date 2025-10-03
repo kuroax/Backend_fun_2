@@ -29,6 +29,7 @@ const userSchema = new Schema<IUser>(
       unique: true,
       lowercase: true,
       trim: true,
+      maxlength: 100,
     },
     password: {
       type: String,
@@ -48,28 +49,24 @@ const userSchema = new Schema<IUser>(
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
   },
-  {
-    timestamps: true, // adds createdAt and updatedAt
-  }
+  { timestamps: true }
 );
 
-// 🔹 Pre-save hook to hash password
+// 🔹 Password hashing
 userSchema.pre("save", async function (this: IUser) {
   if (!this.isModified("password")) return;
-
   const rounds = Number(process.env.BCRYPT_ROUNDS ?? 10);
-  const salt   = await bcrypt.genSalt(rounds);
+  const salt = await bcrypt.genSalt(rounds);
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-// 🔹 Compare entered password with hashed password
+// 🔹 Password compare method
 userSchema.methods.comparePassword = async function (
   candidatePassword: string
 ): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-// 🔹 Index for faster lookups
 userSchema.index({ email: 1 });
 
 export const User = model<IUser>("User", userSchema);
