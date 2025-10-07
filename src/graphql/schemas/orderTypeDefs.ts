@@ -3,82 +3,87 @@ import { gql } from "graphql-tag";
 export const orderTypeDefs = gql`
   scalar DateTime
 
-  # --------------------------
-  # Enums
-  # --------------------------
-  enum OrderStatus {
-    PENDING
-    PAID
-    SHIPPED
-    DELIVERED
-    CANCELLED
-  }
-
-  # --------------------------
-  # Types
-  # --------------------------
+  """
+  Representa un producto incluido en un pedido.
+  """
   type OrderItem {
     product: Product!
     quantity: Int!
     price: Float!
   }
 
+  """
+  Representa la dirección de envío mexicana usada en el pedido (snapshot).
+  """
+  type ShippingAddress {
+    fullName: String!
+    street: String!
+    extNumber: String!
+    intNumber: String
+    neighborhood: String!
+    municipality: String!
+    state: String!
+    postalCode: String!
+    country: String!
+    phoneNumber: String!
+    deliveryInstructions: String
+  }
+
+  """
+  Representa un pedido realizado por un usuario.
+  """
   type Order {
     id: ID!
     user: User!
     items: [OrderItem!]!
     totalPrice: Float!
-    status: OrderStatus!
+    status: String!
     payments: [Payment!]!
-
-    """
-    Address snapshot at checkout (copied from Address type).
-    Ensures historical accuracy even if the user updates their saved address later.
-    """
-    shippingAddress: Address!
-
-    # Optional reference to the user's saved Address
-    addressId: ID
-
+    shippingAddress: ShippingAddress!
     createdAt: DateTime!
     updatedAt: DateTime!
   }
 
-  type Error {
-    code: String!
-    message: String!
+  """
+  Input para colocar un nuevo pedido en México.
+  """
+  input PlaceOrderInput {
+    userId: ID!
+    addressId: ID!                # referencia a AddressMX
+    items: [OrderItemInput!]!
   }
 
-  union OrderResponse = Order | Error
-
-  # --------------------------
-  # Inputs
-  # --------------------------
   input OrderItemInput {
     productId: ID!
     quantity: Int!
     price: Float!
   }
 
-  input PlaceOrderInput {
-    userId: ID!
-    items: [OrderItemInput!]!
-    addressId: ID! # which saved address to copy
+  """
+  Input para actualizar el estado del pedido (administrador o sistema).
+  """
+  input UpdateOrderStatusInput {
+    orderId: ID!
+    status: String!
   }
 
-  # --------------------------
-  # Queries
-  # --------------------------
+  """
+  Respuesta para operaciones de pedidos.
+  """
+  type OrderPayload {
+    success: Boolean!
+    message: String
+    order: Order
+  }
+
   extend type Query {
-    orders(userId: ID!): [Order!]!
-    order(id: ID!): OrderResponse
+    getOrdersByUser(userId: ID!): [Order!]!
+    getOrderById(id: ID!): Order
   }
 
-  # --------------------------
-  # Mutations
-  # --------------------------
   extend type Mutation {
-    placeOrder(input: PlaceOrderInput!): OrderResponse!
-    updateOrderStatus(orderId: ID!, status: OrderStatus!): OrderResponse!
+    placeOrder(input: PlaceOrderInput!): OrderPayload!
+    updateOrderStatus(input: UpdateOrderStatusInput!): OrderPayload!
+    cancelOrder(orderId: ID!): OrderPayload!
   }
 `;
