@@ -6,7 +6,7 @@ export interface IOrderItem {
   price: number;             // price snapshot at purchase time
 }
 
-export interface IShippingAddressMX {
+export interface IShippingAddress {
   fullName: string;
   street: string;
   extNumber: string;
@@ -20,19 +20,19 @@ export interface IShippingAddressMX {
   deliveryInstructions?: string;
 }
 
-export interface IOrderMX extends Document {
+export interface IOrder extends Document {
   user: Types.ObjectId;
   items: IOrderItem[];
   totalPrice: number;
   status: "pending" | "paid" | "shipped" | "delivered" | "cancelled";
   payments: Types.ObjectId[];
-  shippingAddress: IShippingAddressMX;   // snapshot (immutable)
+  shippingAddress: IShippingAddress;   // snapshot (immutable)
   addressId?: Types.ObjectId;            // reference to saved Address
   createdAt: Date;
   updatedAt: Date;
 }
 
-const orderSchemaMX = new Schema<IOrderMX>(
+const orderSchema = new Schema<IOrder>(
   {
     user: { type: Schema.Types.ObjectId, ref: "User", required: true },
     items: [
@@ -75,7 +75,7 @@ const orderSchemaMX = new Schema<IOrderMX>(
 );
 
 // 🔹 Auto-calculate total price
-orderSchemaMX.pre("save", async function (this: IOrderMX) {
+orderSchema.pre("save", async function (this: IOrder) {
   if (this.isModified("items")) {
     this.totalPrice = this.items.reduce(
       (sum, item) => sum + item.price * item.quantity,
@@ -85,8 +85,8 @@ orderSchemaMX.pre("save", async function (this: IOrderMX) {
 });
 
 // 🔹 Indexes for performance
-orderSchemaMX.index({ user: 1, status: 1 });
-orderSchemaMX.index({ createdAt: -1 });
-orderSchemaMX.index({ status: 1 });
+orderSchema.index({ user: 1, status: 1 });
+orderSchema.index({ createdAt: -1 });
+orderSchema.index({ status: 1 });
 
-export const OrderMX = model<IOrderMX>("Order", orderSchemaMX);
+export const Order = model<IOrder>("Order", orderSchema);

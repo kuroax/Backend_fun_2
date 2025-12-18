@@ -3,7 +3,7 @@ import { Schema, model, Document, Types } from "mongoose";
 export type PaymentProvider = "STRIPE" | "PAYPAL" | "CIEBANCO" | "MERCADO_PAGO";
 export type PaymentStatus = "INITIATED" | "PENDING" | "SUCCESSFUL" | "FAILED" | "REFUNDED";
 
-export interface IPaymentMX extends Document {
+export interface IPayment extends Document {
   order: Types.ObjectId;             // reference to OrderMX
   user: Types.ObjectId;              // reference to User
   provider: PaymentProvider;         // enum of supported providers
@@ -18,9 +18,9 @@ export interface IPaymentMX extends Document {
   updatedAt: Date;
 }
 
-const paymentSchemaMX = new Schema<IPaymentMX>(
+const paymentSchema = new Schema<IPayment>(
   {
-    order: { type: Schema.Types.ObjectId, ref: "OrderMX", required: true },
+    order: { type: Schema.Types.ObjectId, ref: "Order", required: true },
     user: { type: Schema.Types.ObjectId, ref: "User", required: true },
     provider: {
       type: String,
@@ -43,16 +43,16 @@ const paymentSchemaMX = new Schema<IPaymentMX>(
 );
 
 // 🔹 Indexes for fast lookups
-paymentSchemaMX.index({ order: 1 });
-paymentSchemaMX.index({ transactionId: 1, provider: 1 }, { unique: true });
-paymentSchemaMX.index({ user: 1, createdAt: -1 });
+paymentSchema.index({ order: 1 });
+paymentSchema.index({ transactionId: 1, provider: 1 }, { unique: true });
+paymentSchema.index({ user: 1, createdAt: -1 });
 
 // 🔹 Validation hook: ensure amount is positive
-paymentSchemaMX.pre("save", function (next) {
+paymentSchema.pre("save", function (next) {
   if (this.amount <= 0) {
     return next(new Error("Payment amount must be greater than zero."));
   }
   next();
 });
 
-export const PaymentMX = model<IPaymentMX>("PaymentMX", paymentSchemaMX);
+export const Payment = model<IPayment>("Payment", paymentSchema);

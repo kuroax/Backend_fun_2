@@ -7,9 +7,15 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon --exec tsx src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js"
+    "dev": "nodemon --exec tsx src/server.ts",
+    "build": "tsc && tsc-alias",
+    "start": "node dist/server.js"
+  },
+  "imports": {
+    "#models/": "./models/",
+    "#graphql/": "./src/graphql/",
+    "#appTypes/": "./src/types/",
+    "#utils/": "./src/utils/"
   },
   "dependencies": {
     "@apollo/server": "^5.0.0",
@@ -29,6 +35,7 @@
     "@graphql-tools/merge": "^9.1.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.3.0",
     "nodemon": "^3.1.10",
     "tsx": "^4.20.5",

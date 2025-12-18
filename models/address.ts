@@ -1,6 +1,6 @@
 import { Schema, model, Document, Types } from "mongoose";
 
-export interface IAddressMX extends Document {
+export interface IAddress extends Document {
   user: Types.ObjectId;
   fullName: string;
   street: string;
@@ -18,7 +18,7 @@ export interface IAddressMX extends Document {
   updatedAt: Date;
 }
 
-const addressSchemaMX = new Schema<IAddressMX>(
+const addressSchema = new Schema<IAddress>(
   {
     user: { type: Schema.Types.ObjectId, ref: "User", required: true },
     fullName: { type: String, required: true, trim: true, minlength: 5, maxlength: 100 },
@@ -49,9 +49,9 @@ const addressSchemaMX = new Schema<IAddressMX>(
 );
 
 // 🔹 Ensure one default address per user
-addressSchemaMX.pre("save", async function (this: IAddressMX) {
+addressSchema.pre("save", async function (this: IAddress) {
   if (this.isDefault) {
-    await AddressMX.updateMany(
+    await Address.updateMany(
       { user: this.user, _id: { $ne: this._id } },
       { $set: { isDefault: false } }
     );
@@ -59,8 +59,8 @@ addressSchemaMX.pre("save", async function (this: IAddressMX) {
 });
 
 // 🔹 Useful indexes
-addressSchemaMX.index({ user: 1 });
-addressSchemaMX.index({ user: 1, isDefault: 1 });
-addressSchemaMX.index({ postalCode: 1 });
+addressSchema.index({ user: 1 });
+addressSchema.index({ user: 1, isDefault: 1 });
+addressSchema.index({ postalCode: 1 });
 
-export const AddressMX = model<IAddressMX>("Address", addressSchemaMX);
+export const Address = model<IAddress>("Address", addressSchema);
