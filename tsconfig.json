@@ -1,20 +1,36 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
     "esModuleInterop": true,
     "skipLibCheck": true,
     "strict": true,
     "isolatedModules": true,
     "types": ["node"],
+
     "sourceMap": true,
     "outDir": "dist",
+    "rootDir": ".",
+
     "verbatimModuleSyntax": true,
-    "allowImportingTsExtensions": true,
     "resolvePackageJsonExports": true,
-    "resolvePackageJsonImports": true
+    "resolvePackageJsonImports": true,
+
+    "baseUrl": ".",
+    "paths": {
+      "#models/*": ["models/*"],
+      "#graphql/*": ["src/graphql/*"],
+      "#appTypes/*": ["src/types/*"],
+      "#utils/*": ["src/utils/*"],
+      "#config/*": ["config/*"]
+    },
+    "ignoreDeprecations": "6.0"
+
   },
   "include": ["src/**/*", "models/**/*"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "dist"]
 }

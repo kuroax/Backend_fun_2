@@ -3,17 +3,33 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { GraphQLError } from "graphql";
 
-import { IUser } from "#models/user.js";
-import { IResolvers } from "@graphql-tools/utils";
-import { GraphQLContext } from "#appTypes/context"; // ✅ type-only alias (no .js)
+import type { IUser } from "#models/user.js";
+import type { GraphQLContext } from "#appTypes/context.js";
+import type { IResolvers } from "@graphql-tools/utils";
+
+import { toDbRole, toGqlRole } from "#utils/roleMapper.js";
 
 export const userResolvers: IResolvers = {
+  /**
+   * ---------------------------------------
+   * Field resolvers (DB -> GraphQL mapping)
+   * ---------------------------------------
+   * DB stores: "user" | "admin"
+   * GraphQL expects: USER | ADMIN
+   */
+  User: {
+    role: (u: any) => toGqlRole(u.role),
+  },
+
   Query: {
     // Get all users (admin only)
     users: async (_p, _a, { models, user }: GraphQLContext): Promise<IUser[]> => {
       if (!user || user.role !== "admin") {
-        throw new GraphQLError("Unauthorized", { extensions: { code: "UNAUTHORIZED" } });
+        throw new GraphQLError("Unauthorized", {
+          extensions: { code: "UNAUTHORIZED" },
+        });
       }
+
       try {
         return await models.User.find().sort({ createdAt: -1 });
       } catch (error: any) {
@@ -23,15 +39,24 @@ export const userResolvers: IResolvers = {
       }
     },
 
-    // Get user by ID
-    user: async (_p, { id }: { id: string }, { models, user }: GraphQLContext): Promise<IUser | null> => {
+    // Get user by ID (authenticated)
+    user: async (
+      _p,
+      { id }: { id: string },
+      { models, user }: GraphQLContext
+    ): Promise<IUser | null> => {
       if (!user) {
-        throw new GraphQLError("Not authenticated", { extensions: { code: "UNAUTHENTICATED" } });
+        throw new GraphQLError("Not authenticated", {
+          extensions: { code: "UNAUTHENTICATED" },
+        });
       }
+
       try {
         const foundUser = await models.User.findById(id);
         if (!foundUser) {
-          throw new GraphQLError("User not found", { extensions: { code: "BAD_USER_INPUT" } });
+          throw new GraphQLError("User not found", {
+            extensions: { code: "BAD_USER_INPUT" },
+          });
         }
         return foundUser;
       } catch (error: any) {
@@ -44,8 +69,11 @@ export const userResolvers: IResolvers = {
     // Get authenticated user's profile
     me: async (_p, _a, { user, models }: GraphQLContext): Promise<IUser | null> => {
       if (!user) {
-        throw new GraphQLError("Not authenticated", { extensions: { code: "UNAUTHENTICATED" } });
+        throw new GraphQLError("Not authenticated", {
+          extensions: { code: "UNAUTHENTICATED" },
+        });
       }
+
       try {
         return await models.User.findById(user.id);
       } catch (error: any) {
@@ -58,7 +86,11 @@ export const userResolvers: IResolvers = {
 
   Mutation: {
     // Register new user
-    registerUser: async (_p, { input }: { input: Partial<IUser> }, { models }: GraphQLContext): Promise<IUser> => {
+    registerUser: async (
+      _p,
+      { input }: { input: { name: string; email: string; password: string; role?: "USER" | "ADMIN" } },
+      { models }: GraphQLContext
+    ): Promise<IUser> => {
       try {
         const existingUser = await models.User.findOne({ email: input.email });
         if (existingUser) {
@@ -67,7 +99,14 @@ export const userResolvers: IResolvers = {
           });
         }
 
-        const newUser = new models.User(input);
+        // Map GraphQL role -> DB role
+        const dbRole = input.role ? toDbRole(input.role) : "user";
+
+        const newUser = new models.User({
+          ...input,
+          role: dbRole,
+        });
+
         await newUser.save();
         return newUser;
       } catch (error: any) {
@@ -84,21 +123,30 @@ export const userResolvers: IResolvers = {
       { models }: GraphQLContext
     ): Promise<{ token: string; user: IUser }> => {
       try {
-        const user = await models.User.findOne({ email });
+        // IMPORTANT: password has select:false in schema, so we must opt-in
+        const user = await models.User.findOne({ email }).select("+password");
         if (!user) {
-          throw new GraphQLError("Invalid email or password", { extensions: { code: "UNAUTHENTICATED" } });
+          throw new GraphQLError("Invalid email or password", {
+            extensions: { code: "UNAUTHENTICATED" },
+          });
         }
 
+        // Use bcrypt directly (or user.comparePassword if you prefer)
         const validPassword = await bcrypt.compare(password, user.password);
         if (!validPassword) {
-          throw new GraphQLError("Invalid email or password", { extensions: { code: "UNAUTHENTICATED" } });
+          throw new GraphQLError("Invalid email or password", {
+            extensions: { code: "UNAUTHENTICATED" },
+          });
         }
 
         const token = jwt.sign(
-          { id: user.id, role: user.role },
+          { id: user.id, role: user.role }, // DB role: "user" | "admin"
           process.env.JWT_SECRET as string,
           { expiresIn: "7d" }
         );
+
+        // Ensure password is not accidentally leaked downstream
+        user.password = undefined as any;
 
         return { token, user };
       } catch (error: any) {
@@ -111,22 +159,35 @@ export const userResolvers: IResolvers = {
     // Update user info
     updateUser: async (
       _p,
-      { id, input }: { id: string; input: Partial<IUser> },
+      { id, input }: { id: string; input: { name?: string; email?: string; role?: "USER" | "ADMIN" } },
       { models, user }: GraphQLContext
     ): Promise<IUser> => {
       if (!user) {
-        throw new GraphQLError("Not authenticated", { extensions: { code: "UNAUTHENTICATED" } });
+        throw new GraphQLError("Not authenticated", {
+          extensions: { code: "UNAUTHENTICATED" },
+        });
       }
 
       try {
+        const patch: Record<string, unknown> = { ...input };
+
+        // Map GraphQL role -> DB role (if provided)
+        if (input.role) {
+          patch.role = toDbRole(input.role);
+        }
+
         const updatedUser = await models.User.findByIdAndUpdate(
           id,
-          { $set: input },
+          { $set: patch },
           { new: true, runValidators: true }
         );
+
         if (!updatedUser) {
-          throw new GraphQLError("User not found", { extensions: { code: "BAD_USER_INPUT" } });
+          throw new GraphQLError("User not found", {
+            extensions: { code: "BAD_USER_INPUT" },
+          });
         }
+
         return updatedUser;
       } catch (error: any) {
         throw new GraphQLError(`Failed to update user: ${error.message}`, {
@@ -142,14 +203,19 @@ export const userResolvers: IResolvers = {
       { models, user }: GraphQLContext
     ): Promise<{ message: string }> => {
       if (!user || user.role !== "admin") {
-        throw new GraphQLError("Unauthorized", { extensions: { code: "UNAUTHORIZED" } });
+        throw new GraphQLError("Unauthorized", {
+          extensions: { code: "UNAUTHORIZED" },
+        });
       }
 
       try {
         const deletedUser = await models.User.findByIdAndDelete(id);
         if (!deletedUser) {
-          throw new GraphQLError("User not found", { extensions: { code: "BAD_USER_INPUT" } });
+          throw new GraphQLError("User not found", {
+            extensions: { code: "BAD_USER_INPUT" },
+          });
         }
+
         return { message: "User successfully deleted" };
       } catch (error: any) {
         throw new GraphQLError(`Failed to delete user: ${error.message}`, {
@@ -181,7 +247,7 @@ export const userResolvers: IResolvers = {
 
         return {
           message: "Password reset token generated successfully",
-          resetToken, // visible only in development
+          resetToken, // return only in dev; remove in prod
         };
       } catch (error: any) {
         throw new GraphQLError(`Failed to create reset token: ${error.message}`, {
@@ -193,13 +259,19 @@ export const userResolvers: IResolvers = {
     // Reset user password
     resetUserPassword: async (
       _p,
-      { userId, resetToken, newPassword }: { userId: string; resetToken: string; newPassword: string },
+      {
+        userId,
+        resetToken,
+        newPassword,
+      }: { userId: string; resetToken: string; newPassword: string },
       { models }: GraphQLContext
     ): Promise<{ message: string }> => {
       try {
-        const user = await models.User.findById(userId);
+        const user = await models.User.findById(userId).select("+password");
         if (!user) {
-          throw new GraphQLError("User not found", { extensions: { code: "BAD_USER_INPUT" } });
+          throw new GraphQLError("User not found", {
+            extensions: { code: "BAD_USER_INPUT" },
+          });
         }
 
         const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
@@ -214,10 +286,12 @@ export const userResolvers: IResolvers = {
           });
         }
 
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        user.password = hashedPassword;
+        // Setting password triggers pre-save hashing middleware
+        user.password = newPassword;
+
         user.resetPasswordToken = undefined;
         user.resetPasswordExpires = undefined;
+
         await user.save();
 
         return { message: "Password reset successful" };

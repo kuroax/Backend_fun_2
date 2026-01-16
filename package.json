@@ -12,10 +12,10 @@
     "start": "node dist/server.js"
   },
   "imports": {
-    "#models/": "./models/",
-    "#graphql/": "./src/graphql/",
-    "#appTypes/": "./src/types/",
-    "#utils/": "./src/utils/"
+    "#models/*": "./models/*",
+    "#graphql/*": "./src/graphql/*",
+    "#appTypes/*": "./src/types/*",
+    "#utils/*": "./src/utils/*"
   },
   "dependencies": {
     "@apollo/server": "^5.0.0",
