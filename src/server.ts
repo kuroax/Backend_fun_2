@@ -10,7 +10,7 @@ import dotenv from "dotenv";
 import { typeDefs } from "./graphql/schemas";
 import { resolvers } from "./graphql/resolvers";
 import { connectDB } from "./config/db";
-
+import { verifyEmailHandler } from "./routes/authVerifyEmail.js";
 dotenv.config();
 
 async function startServer() {
@@ -53,3 +53,5 @@ startServer().catch((error) => {
   console.error("❌ Error starting server:", error);
   process.exit(1);
 });
+
+app.get("/auth/verify-email", verifyEmailHandler);
